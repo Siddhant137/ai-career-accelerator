@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 import { authApi } from '@/lib/api'
 import { Zap, User, Briefcase } from 'lucide-react'
 
+// 1. The component that uses useSearchParams
 function RegisterForm() {
   const router = useRouter()
   const params = useSearchParams()
@@ -14,18 +15,20 @@ function RegisterForm() {
 
   useEffect(() => {
     if (params.get('role') === 'recruiter') setForm(f => ({ ...f, role: 'recruiter' }))
-  }, [])
+  }, [params]) // Fixed: Added 'params' to dependency array to stop the build from crashing
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     try {
       await authApi.register(form)
       toast.success('Account created! Please login.')
       router.push('/login')
-    } catch (err: any) {
+    } catch (err) {
       toast.error(err.response?.data?.detail || 'Registration failed')
-    } finally { setLoading(false) }
+    } finally { 
+      setLoading(false) 
+    }
   }
 
   return (
@@ -43,7 +46,7 @@ function RegisterForm() {
 
       <div className="card">
         <div className="grid grid-cols-2 gap-3 mb-6">
-          {(['candidate', 'recruiter'] as const).map(role => (
+          {['candidate', 'recruiter'].map(role => (
             <button key={role} type="button" onClick={() => setForm(f => ({ ...f, role }))}
               className="flex flex-col items-center gap-2 p-4 rounded-xl transition-all"
               style={{ border: `1px solid ${form.role === role ? '#a78bfa' : 'rgba(99,102,241,0.2)'}`, background: form.role === role ? 'rgba(167,139,250,0.1)' : 'transparent' }}>
@@ -80,6 +83,7 @@ function RegisterForm() {
   )
 }
 
+// 2. The default export that wraps it in Suspense
 export default function RegisterPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12">
