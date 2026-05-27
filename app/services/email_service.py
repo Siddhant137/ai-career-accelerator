@@ -29,20 +29,13 @@ def _send(to: str, subject: str, html: str) -> None:
         msg["To"]      = to
         msg.attach(MIMEText(html, "html"))
 
-        # 🚨 THE FIX: Adding source_address to force IPv4 routing on Render
-        with smtplib.SMTP(
-            settings.smtp_host, 
-            settings.smtp_port,
-            timeout=15,
-            source_address=('0.0.0.0', 0)
-        ) as server:
-            if settings.smtp_use_tls:
-                server.starttls()
+        # 🚨 THE FIX: Use SMTP_SSL on Port 465 (bypassing the starttls step entirely)
+        with smtplib.SMTP_SSL(settings.smtp_host, 465, timeout=15) as server:
             server.login(settings.smtp_user, settings.smtp_password)
             server.sendmail(settings.smtp_user, [to], msg.as_string())
 
         logger.info("Email sent to=%s subject=%s", to, subject)
-        
+
     except smtplib.SMTPAuthenticationError:
         logger.error("SMTP auth failed — check SMTP_USER and SMTP_PASSWORD (use App Password for Gmail)")
     except smtplib.SMTPException as exc:
