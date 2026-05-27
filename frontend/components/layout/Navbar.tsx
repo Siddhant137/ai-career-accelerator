@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { logout, getRole } from '@/lib/auth'
 import { Zap, LogOut, User, Briefcase, FileText, Star, Home, PlusCircle } from 'lucide-react'
+import NotificationBell from '@/components/ui/NotificationBell'
 
 export default function Navbar() {
   const router = useRouter()

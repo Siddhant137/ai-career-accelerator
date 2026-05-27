@@ -1,5 +1,7 @@
 import axios from 'axios'
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
 export const api = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
@@ -24,44 +26,190 @@ api.interceptors.response.use(
   }
 )
 
-export interface User { id: number; email: string; full_name: string; role: 'candidate' | 'recruiter' | 'admin'; is_active: boolean; is_verified: boolean }
-export interface CandidateProfile extends User { headline?: string; bio?: string; location?: string; linkedin_url?: string; github_url?: string; created_at: string }
-export interface TokenResponse { access_token: string; refresh_token: string; token_type: string; expires_in: number }
-export interface ResumeScoreResponse { score: number; missing_skills: string[]; recommended_project: string; summary: string }
-export interface AnalysisSummary { id: number; original_filename?: string; score: number; missing_skills: string[]; recommended_project: string; summary: string; created_at: string }
-export interface JobPosting { id: number; recruiter_id: number; title: string; company: string; location?: string; description: string; required_skills: string[]; salary_range?: string; job_type?: string; experience_level?: string; status: 'active' | 'closed' | 'draft'; created_at: string; updated_at: string }
-export interface Match { id: number; candidate_id: number; job_id: number; score: number; missing_skills: string[]; recommended_project: string; summary: string; status: 'pending' | 'reviewed' | 'shortlisted' | 'rejected'; recruiter_notes?: string; created_at: string; job_title?: string; job_company?: string; job_location?: string; candidate_name?: string; candidate_email?: string; candidate_headline?: string }
-export interface PaginatedResponse<T> { total: number; page: number; size: number; results: T[] }
+// ── Types ──────────────────────────────────────────────────────────────────────
+
+export interface User {
+  id: number
+  email: string
+  full_name: string
+  role: 'candidate' | 'recruiter' | 'admin'
+  is_active: boolean
+  is_verified: boolean
+}
+
+export interface CandidateProfile extends User {
+  headline?: string
+  bio?: string
+  location?: string
+  linkedin_url?: string
+  github_url?: string
+  created_at: string
+}
+
+export interface TokenResponse {
+  access_token: string
+  refresh_token: string
+  token_type: string
+  expires_in: number
+}
+
+export interface ResumeScoreResponse {
+  score: number
+  missing_skills: string[]
+  recommended_project: string
+  summary: string
+}
+
+export interface AnalysisSummary {
+  id: number
+  original_filename?: string
+  score: number
+  missing_skills: string[]
+  recommended_project: string
+  summary: string
+  created_at: string
+}
+
+export interface JobPosting {
+  id: number
+  recruiter_id: number
+  title: string
+  company: string
+  location?: string
+  description: string
+  required_skills: string[]
+  salary_range?: string
+  job_type?: string
+  experience_level?: string
+  status: 'active' | 'closed' | 'draft'
+  created_at: string
+  updated_at: string
+}
+
+export interface Match {
+  id: number
+  candidate_id: number
+  job_id: number
+  score: number
+  missing_skills: string[]
+  recommended_project: string
+  summary: string
+  status: 'pending' | 'reviewed' | 'shortlisted' | 'rejected'
+  recruiter_notes?: string
+  created_at: string
+  job_title?: string
+  job_company?: string
+  job_location?: string
+  candidate_name?: string
+  candidate_email?: string
+  candidate_headline?: string
+}
+
+export interface Notification {
+  id: number
+  type: string
+  title: string
+  message: string
+  is_read: boolean
+  data?: Record<string, any>
+  created_at: string
+}
+
+export interface PaginatedNotifications {
+  total: number
+  unread_count: number
+  page: number
+  size: number
+  results: Notification[]
+}
+
+export interface PaginatedResponse<T> {
+  total: number
+  page: number
+  size: number
+  results: T[]
+}
+
+export interface AutoMatchResult {
+  jobs: number
+  candidates: number
+  matches_created: number
+  notifications_sent: number
+  skipped?: boolean
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+export function getErrorMessage(err: any): string {
+  const detail = err?.response?.data?.detail
+  if (Array.isArray(detail)) return detail.map((e: any) => e.msg ?? 'Validation error').join(', ')
+  if (typeof detail === 'string') return detail
+  if (err?.message) return err.message
+  return 'Something went wrong. Please try again.'
+}
+
+// ── API clients ────────────────────────────────────────────────────────────────
 
 export const authApi = {
-  register: (data: { email: string; password: string; full_name: string; role: string }) => api.post('/auth/register', data),
-  login: (data: { email: string; password: string }) => api.post<TokenResponse>('/auth/login', data),
-  me: () => api.get<User>('/auth/me'),
-  changePassword: (data: { current_password: string; new_password: string }) => api.put('/auth/me/password', data),
+  register:        (data: { email: string; password: string; full_name: string; role: string }) =>
+                     api.post('/auth/register', data),
+  login:           (data: { email: string; password: string }) =>
+                     api.post<TokenResponse>('/auth/login', data),
+  me:              () => api.get<User>('/auth/me'),
+  changePassword:  (data: { current_password: string; new_password: string }) =>
+                     api.put('/auth/me/password', data),
+  forgotPassword:  (email: string) =>
+                     api.post('/auth/forgot-password', { email }),
+  resetPassword:   (token: string, new_password: string) =>
+                     api.post('/auth/reset-password', { token, new_password }),
+  verifyEmail:     (token: string) =>
+                     api.post('/auth/verify-email', { token }),
 }
+
 export const candidateApi = {
-  getProfile: () => api.get<CandidateProfile>('/candidates/me'),
-  updateProfile: (data: Partial<CandidateProfile>) => api.put<CandidateProfile>('/candidates/me', data),
-  getHistory: (page = 1, size = 10) => api.get<PaginatedResponse<AnalysisSummary>>(`/candidates/me/history?page=${page}&size=${size}`),
-  getAnalysis: (id: number) => api.get<AnalysisSummary>(`/candidates/me/history/${id}`),
+  getProfile:   () => api.get<CandidateProfile>('/candidates/me'),
+  updateProfile:(data: Partial<CandidateProfile>) => api.put<CandidateProfile>('/candidates/me', data),
+  getHistory:   (page = 1, size = 10) =>
+                  api.get<PaginatedResponse<AnalysisSummary>>(`/candidates/me/history?page=${page}&size=${size}`),
+  getAnalysis:  (id: number) => api.get<AnalysisSummary>(`/candidates/me/history/${id}`),
 }
+
 export const resumeApi = {
   score: (file: File, jobDescription: string) => {
     const form = new FormData()
     form.append('resume', file)
     form.append('job_description', jobDescription)
-    return api.post<ResumeScoreResponse>('/api/v1/score-resume', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+    return api.post<ResumeScoreResponse>('/api/v1/score-resume', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
   },
 }
+
 export const jobsApi = {
-  list: (page = 1, size = 10, search?: string) => { const q = search ? `&search=${encodeURIComponent(search)}` : ''; return api.get<PaginatedResponse<JobPosting>>(`/jobs?page=${page}&size=${size}${q}`) },
-  get: (id: number) => api.get<JobPosting>(`/jobs/${id}`),
-  mine: (page = 1, size = 10) => api.get<PaginatedResponse<JobPosting>>(`/jobs/mine?page=${page}&size=${size}`),
-  create: (data: Partial<JobPosting>) => api.post<JobPosting>('/jobs', data),
-  update: (id: number, data: Partial<JobPosting>) => api.put<JobPosting>(`/jobs/${id}`, data),
-  close: (id: number) => api.delete(`/jobs/${id}`),
-  matchMe: (id: number) => api.post<Match>(`/jobs/${id}/match-me`),
-  getCandidates: (id: number, page = 1, size = 10) => api.get<PaginatedResponse<Match>>(`/jobs/${id}/candidates?page=${page}&size=${size}`),
-  updateMatch: (jobId: number, matchId: number, data: { status: string; recruiter_notes?: string }) => api.put<Match>(`/jobs/${jobId}/matches/${matchId}`, data),
-  myMatches: (page = 1, size = 10) => api.get<PaginatedResponse<Match>>(`/jobs/matches/mine?page=${page}&size=${size}`),
+  list:        (page = 1, size = 10, search?: string) => {
+                 const q = search ? `&search=${encodeURIComponent(search)}` : ''
+                 return api.get<PaginatedResponse<JobPosting>>(`/jobs?page=${page}&size=${size}${q}`)
+               },
+  get:         (id: number) => api.get<JobPosting>(`/jobs/${id}`),
+  mine:        (page = 1, size = 10) =>
+                 api.get<PaginatedResponse<JobPosting>>(`/jobs/mine?page=${page}&size=${size}`),
+  create:      (data: Partial<JobPosting>) => api.post<JobPosting>('/jobs', data),
+  update:      (id: number, data: Partial<JobPosting>) => api.put<JobPosting>(`/jobs/${id}`, data),
+  close:       (id: number) => api.delete(`/jobs/${id}`),
+  matchMe:     (id: number) => api.post<Match>(`/jobs/${id}/match-me`),
+  getCandidates:(id: number, page = 1, size = 10) =>
+                 api.get<PaginatedResponse<Match>>(`/jobs/${id}/candidates?page=${page}&size=${size}`),
+  updateMatch: (jobId: number, matchId: number, data: { status: string; recruiter_notes?: string }) =>
+                 api.put<Match>(`/jobs/${jobId}/matches/${matchId}`, data),
+  myMatches:   (page = 1, size = 10) =>
+                 api.get<PaginatedResponse<Match>>(`/jobs/matches/mine?page=${page}&size=${size}`),
+  runAutoMatch:() => api.post<AutoMatchResult>('/jobs/auto-match'),
+}
+
+export const notificationsApi = {
+  list:        (page = 1, size = 20, unread_only = false) =>
+                 api.get<PaginatedNotifications>(`/notifications?page=${page}&size=${size}&unread_only=${unread_only}`),
+  unreadCount: () => api.get<{ unread_count: number }>('/notifications/unread-count'),
+  markRead:    (id: number) => api.put<Notification>(`/notifications/${id}/read`),
+  markAllRead: () => api.put('/notifications/read-all'),
 }

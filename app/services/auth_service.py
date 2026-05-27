@@ -2,7 +2,7 @@
 app/services/auth_service.py
 ─────────────────────────────
 Handles all authentication logic:
-  * Password hashing / verification  (bcrypt direct — no passlib)
+  * Password hashing / verification  (bcrypt)
   * JWT creation / decoding          (HS256 via python-jose)
   * User CRUD operations used by auth routes
 """
@@ -37,7 +37,10 @@ def hash_password(plain: str) -> str:
 
 def verify_password(plain: str, hashed: str) -> bool:
     """Verify a plaintext password against a bcrypt hash."""
-    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+    except Exception:
+        return False
 
 
 # ── JWT ────────────────────────────────────────────────────────────────────────
@@ -70,7 +73,6 @@ def decode_access_token(token: str) -> dict:
     Raises
     ------
     InvalidTokenError
-        If the token is expired, malformed, or not an access token.
     """
     try:
         payload = jwt.decode(
@@ -103,7 +105,10 @@ def decode_refresh_token(token: str) -> int:
     if payload.get("type") != "refresh":
         raise InvalidTokenError("Token is not a refresh token.")
 
-    return int(payload["sub"])
+    try:
+        return int(payload["sub"])
+    except (KeyError, ValueError) as exc:
+        raise InvalidTokenError("Refresh token payload is malformed.") from exc
 
 
 # ── User CRUD ──────────────────────────────────────────────────────────────────
@@ -130,20 +135,30 @@ def register_user(db: Session, payload: RegisterRequest) -> User:
             f"An account with email '{payload.email}' already exists."
         )
 
+    # Resolve role safely — accepts both enum instance and raw string
+    role = payload.role if isinstance(payload.role, UserRole) else UserRole(payload.role)
+
     user = User(
         email=payload.email.lower().strip(),
         hashed_password=hash_password(payload.password),
         full_name=payload.full_name.strip(),
-        role=payload.role,
+        role=role,
         is_active=True,
         is_verified=False,
     )
     db.add(user)
-    db.commit()
-    db.refresh(user)
+
+    try:
+        db.commit()
+        db.refresh(user)
+    except Exception as exc:
+        db.rollback()
+        logger.error("DB error during register_user: %s", exc, exc_info=True)
+        raise
+
     logger.info(
         "New user registered: id=%d email=%s role=%s",
-        user.id, user.email, user.role
+        user.id, user.email, user.role,
     )
     return user
 
@@ -155,7 +170,6 @@ def authenticate_user(db: Session, email: str, password: str) -> User:
     Raises
     ------
     InvalidCredentialsError
-        If the email doesn't exist or the password is wrong.
     """
     user = get_user_by_email(db, email)
     if not user or not verify_password(password, user.hashed_password):
@@ -179,5 +193,12 @@ def change_password(db: Session, user: User, current: str, new: str) -> None:
         raise InvalidCredentialsError("Current password is incorrect.")
 
     user.hashed_password = hash_password(new)
-    db.commit()
+
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.error("DB error during change_password: %s", exc, exc_info=True)
+        raise
+
     logger.info("Password changed for user id=%d", user.id)

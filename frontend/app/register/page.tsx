@@ -6,6 +6,28 @@ import toast from 'react-hot-toast'
 import { authApi } from '@/lib/api'
 import { Zap, User, Briefcase } from 'lucide-react'
 
+// ── Helper: extract a readable string from any FastAPI error shape ──────────────
+function getErrorMessage(err: any): string {
+  const detail = err?.response?.data?.detail
+
+  // 422 Validation error — array of { msg, loc, type, ... }
+  if (Array.isArray(detail)) {
+    return detail.map((e: any) => e.msg ?? 'Validation error').join(', ')
+  }
+
+  // Standard HTTP exception — plain string
+  if (typeof detail === 'string') {
+    return detail
+  }
+
+  // Network error or unknown
+  if (err?.message) {
+    return err.message
+  }
+
+  return 'Registration failed. Please try again.'
+}
+
 function RegisterForm() {
   const router = useRouter()
   const params = useSearchParams()
@@ -24,8 +46,10 @@ function RegisterForm() {
       toast.success('Account created! Please login.')
       router.push('/login')
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Registration failed')
-    } finally { setLoading(false) }
+      toast.error(getErrorMessage(err))
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -79,6 +103,7 @@ function RegisterForm() {
             {loading ? 'Creating account...' : 'Create Account'}
           </button>
         </form>
+
         <p className="text-center text-slate-400 text-sm mt-4">
           Already have an account?{' '}
           <Link href="/login" className="text-purple-400 hover:text-purple-300">Sign in</Link>
