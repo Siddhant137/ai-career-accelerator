@@ -66,6 +66,10 @@ settings = get_settings()
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> RegisterResponse:
+    from app.core.email_allowlist import assert_registration_allowed
+
+    assert_registration_allowed(payload.email)
+
     try:
         user = register_user(db, payload)
     except UserAlreadyExistsError as exc:

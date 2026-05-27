@@ -40,11 +40,20 @@ class Settings(BaseSettings):
     refresh_token_expire_days:   int = 7
     algorithm:                   str = "HS256"
 
-    # ── Phase 3: Email (Resend) ────────────────────────────────────────────────
-    resend_api_key:  str = ""
-    email_from:      str = "noreply@careerai.dev"
-    frontend_url:    str = "http://localhost:3000"
-    api_base_url:    str = "http://localhost:8000"
+    # ── Email ────────────────────────────────────────────────────────────────────
+    email_mode:             str = "auto"  # auto | smtp | resend | console
+    resend_api_key:         str = ""
+    email_from:             str = ""
+    frontend_url:           str = "http://localhost:3000"
+    api_base_url:           str = "http://localhost:8000"
+    smtp_host:              str = ""
+    smtp_port:              int = 587
+    smtp_user:              str = ""
+    smtp_password:          str = ""
+    smtp_use_tls:           bool = True
+    # Comma-separated: only these addresses get mail (empty = everyone)
+    email_allowlist:                    str = ""
+    email_allowlist_enforce_registration: bool = True
 
     # ── Phase 3: Auto-matching ─────────────────────────────────────────────────
     auto_match_enabled:        bool = True

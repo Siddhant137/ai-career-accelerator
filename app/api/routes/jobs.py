@@ -25,7 +25,7 @@ from app.schemas.match import (
     MatchWithJobResponse, PaginatedMatches,
 )
 from app.services.auto_match_service import run_auto_match, run_auto_match_for_job
-from app.services.email_service import send_rejected_email, send_shortlisted_email
+from app.services.email_service import send_shortlisted_email
 from app.services.job_service import (
     create_job, delete_job, get_job_by_id, get_jobs,
     get_recruiter_jobs, update_job,
