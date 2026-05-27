@@ -1,31 +1,19 @@
 """
 app/services/match_service.py
 ──────────────────────────────
-Matching engine — scores a candidate's latest resume against a job posting
-using the same AI service, then persists the result as a Match record.
+Matching engine — scores a candidate's resume(s) against a job posting
+using the best-scoring role-specific resume when available.
 """
 
-from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import InsufficientPermissionsError
 from app.core.logging import get_logger
-from app.db.models import Match, MatchStatus, JobPosting, JobStatus, ResumeAnalysis, User
+from app.db.models import Match, MatchStatus, JobPosting, JobStatus, User
 from app.schemas.match import MatchStatusUpdate
-from app.services.gemini_service import score_resume
+from app.services.resume_library_service import score_best_resume_for_job
 
 logger = get_logger(__name__)
-
-
-def _get_latest_resume_text(db: Session, candidate: User) -> Optional[str]:
-    """Return the resume text from the candidate's most recent analysis."""
-    latest = (
-        db.query(ResumeAnalysis)
-        .filter(ResumeAnalysis.user_id == candidate.id)
-        .order_by(ResumeAnalysis.created_at.desc())
-        .first()
-    )
-    return latest.resume_text if latest else None
 
 
 def match_candidate_to_job(
@@ -34,7 +22,7 @@ def match_candidate_to_job(
     job_id: int,
 ) -> Match:
     """
-    Score the candidate's latest resume against the given job posting.
+    Score the candidate's best resume against the given job posting.
     Creates and returns a Match record.
 
     Raises
@@ -42,7 +30,6 @@ def match_candidate_to_job(
     InsufficientPermissionsError
         If job doesn't exist, is not active, or candidate has no resume on file.
     """
-    # ── Fetch and validate job ─────────────────────────────────────────────────
     job = db.query(JobPosting).filter(JobPosting.id == job_id).first()
 
     if not job:
@@ -53,7 +40,6 @@ def match_candidate_to_job(
             f"Job {job_id} is no longer accepting applications."
         )
 
-    # ── Check for existing match ───────────────────────────────────────────────
     existing = db.query(Match).filter(
         Match.candidate_id == candidate.id,
         Match.job_id == job_id,
@@ -63,22 +49,16 @@ def match_candidate_to_job(
         logger.info("Returning existing match id=%d", existing.id)
         return existing
 
-    # ── Get candidate's resume ─────────────────────────────────────────────────
-    resume_text = _get_latest_resume_text(db, candidate)
-    if not resume_text:
-        raise InsufficientPermissionsError(
-            "No resume found. Please score your resume at least once via "
-            "POST /api/v1/score-resume before matching against jobs."
-        )
-
-    # ── AI scoring ────────────────────────────────────────────────────────────
     logger.info(
         "Matching candidate id=%d against job id=%d (%r)",
         candidate.id, job.id, job.title,
     )
-    result = score_resume(resume_text, job.description)
+    result, role_used = score_best_resume_for_job(
+        db, candidate, job.description, job.job_type
+    )
+    if role_used:
+        logger.info("Best match used role_type=%s score=%d", role_used, result.score)
 
-    # ── Persist match ──────────────────────────────────────────────────────────
     match = Match(
         candidate_id=candidate.id,
         job_id=job.id,

@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
-import { resumeApi, ResumeScoreResponse } from '@/lib/api'
+import VerificationBanner from '@/components/ui/VerificationBanner'
+import PageHeader from '@/components/ui/PageHeader'
+import { authApi, candidateApi, resumeApi, ResumeScoreResponse } from '@/lib/api'
 import toast from 'react-hot-toast'
 import { Upload, Zap, CheckCircle } from 'lucide-react'
 
@@ -11,7 +13,15 @@ export default function ScorePage() {
   const [jd, setJd] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<ResumeScoreResponse | null>(null)
+  const [roleTypes, setRoleTypes] = useState<string[]>([])
+  const [roleType, setRoleType] = useState('')
+  const [verified, setVerified] = useState(true)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    authApi.me().then(r => setVerified(r.data.is_verified)).catch(() => {})
+    candidateApi.roleTypes().then(r => setRoleTypes(r.data.role_types)).catch(() => {})
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -24,9 +34,14 @@ export default function ScorePage() {
       return 
     }
     
+    if (!verified) {
+      toast.error('Please verify your email before scoring resumes.')
+      return
+    }
+
     setLoading(true)
     try {
-      const { data } = await resumeApi.score(file, jd)
+      const { data } = await resumeApi.score(file, jd, roleType || undefined)
       setResult(data)
       toast.success('Resume scored successfully!')
     } catch (err: any) {
@@ -42,11 +57,12 @@ export default function ScorePage() {
 
   return (
     <DashboardLayout requiredRole="candidate">
-      
-      <div className="mb-8">
-        <h1 className="font-display font-bold text-3xl text-white mb-1">Score Your Resume</h1>
-        <p className="text-slate-400">Upload your PDF and paste a job description to get your AI match score</p>
-      </div>
+      <VerificationBanner />
+
+      <PageHeader
+        title="Score your resume"
+        subtitle="AI analysis against any job description — optionally save to your role library"
+      />
 
       <div className="grid md:grid-cols-2 gap-8">
         
@@ -88,6 +104,24 @@ export default function ScorePage() {
                 )}
               </div>
             </div>
+
+            {roleTypes.length > 0 && (
+              <div>
+                <label className="text-xs text-slate-400 mb-2 block uppercase tracking-wider">
+                  Save to role library (optional)
+                </label>
+                <select
+                  className="input-field"
+                  value={roleType}
+                  onChange={e => setRoleType(e.target.value)}
+                >
+                  <option value="">Don&apos;t save to library</option>
+                  {roleTypes.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Job description */}
             <div>

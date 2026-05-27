@@ -73,3 +73,15 @@ class PaginatedHistory(BaseModel):
     page:    int
     size:    int
     results: list[AnalysisSummary]
+
+
+# ── Resume library (one per role type) ─────────────────────────────────────────
+
+class CandidateResumeResponse(BaseModel):
+    id:                int
+    role_type:         str
+    original_filename: Optional[str]
+    created_at:        datetime
+    updated_at:        datetime
+
+    model_config = {"from_attributes": True}

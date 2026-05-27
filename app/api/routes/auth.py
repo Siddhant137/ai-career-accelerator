@@ -10,13 +10,16 @@ Auth endpoints — Phase 2 + Phase 3.
     PUT  /auth/me/password           → change password
     POST /auth/forgot-password       → request reset email  [Phase 3]
     POST /auth/reset-password        → reset with token     [Phase 3]
+    GET  /auth/verify                → verify email via link [Phase 3]
     POST /auth/verify-email          → verify email token   [Phase 3]
 """
 
 import secrets
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -74,25 +77,23 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> Registe
             detail="Registration failed due to a server error. Please try again.",
         )
 
-    # Send verification email — failure must never block registration.
-    # verification_token column must exist on User; if it doesn't,
-    # add it via a migration before enabling this block.
-    if hasattr(user, "verification_token"):
-        try:
-            token = secrets.token_urlsafe(32)
-            user.verification_token = token
-            db.commit()
+    try:
+        token = secrets.token_urlsafe(32)
+        from app.services.verification_service import set_verification_token
+        set_verification_token(user, token)
+        db.commit()
 
-            from app.services.email_service import send_verification_email  # lazy import
-            send_verification_email(user.email, user.full_name, token)
-        except Exception as e:
-            logger.warning("Verification email failed (non-fatal): %s", e)
+        from app.services.email_service import send_verification_email  # lazy import
+        send_verification_email(user.email, user.full_name, token)
+    except Exception as e:
+        logger.warning("Verification email failed (non-fatal): %s", e)
 
     return RegisterResponse(
         id=user.id,
         email=user.email,
         full_name=user.full_name,
         role=user.role,
+        message="Account created. Please check your email to verify your address.",
     )
 
 
@@ -258,35 +259,76 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
 
 # ── Phase 3: Email Verification ────────────────────────────────────────────────
 
+@router.get(
+    "/verify",
+    summary="Verify email address (link from email)",
+)
+def verify_email_get(
+    token: str = Query(..., description="Verification token from email"),
+    db: Session = Depends(get_db),
+):
+    from app.services.verification_service import VerificationError, verify_user_email
+
+    try:
+        verify_user_email(db, token)
+        return RedirectResponse(
+            url=f"{settings.frontend_url}/login?verified=1",
+            status_code=status.HTTP_302_FOUND,
+        )
+    except VerificationError as exc:
+        return RedirectResponse(
+            url=(
+                f"{settings.frontend_url}/verify?token={quote(token)}"
+                f"&error={quote(str(exc))}"
+            ),
+            status_code=status.HTTP_302_FOUND,
+        )
+
+
 @router.post(
     "/verify-email",
     status_code=status.HTTP_200_OK,
     summary="Verify email address",
 )
 def verify_email(payload: VerifyEmailRequest, db: Session = Depends(get_db)) -> dict:
-    user = db.query(User).filter(User.verification_token == payload.token).first()
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid verification token.",
-        )
-
-    if user.is_verified:
-        return {"message": "Email already verified."}
-
-    user.is_verified = True
-    user.verification_token = None
+    from app.services.verification_service import VerificationError, verify_user_email
 
     try:
+        verify_user_email(db, payload.token)
+    except VerificationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return {"message": "Email verified successfully!"}
+
+
+@router.post(
+    "/resend-verification",
+    status_code=status.HTTP_200_OK,
+    summary="Resend verification email",
+)
+def resend_verification(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    if current_user.is_verified:
+        return {"message": "Email is already verified."}
+
+    try:
+        token = secrets.token_urlsafe(32)
+        from app.services.verification_service import set_verification_token
+        set_verification_token(current_user, token)
         db.commit()
-    except Exception as exc:
-        db.rollback()
-        logger.error("DB error during email verification: %s", exc, exc_info=True)
+
+        from app.services.email_service import send_verification_email
+        send_verification_email(current_user.email, current_user.full_name, token)
+    except Exception as e:
+        logger.warning("Resend verification failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not verify email. Please try again.",
-        )
+            detail="Could not send verification email. Try again later.",
+        ) from e
 
-    logger.info("Email verified for user id=%d", user.id)
-    return {"message": "Email verified successfully!"}
+    return {"message": "Verification email sent. Please check your inbox."}

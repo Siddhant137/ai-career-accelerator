@@ -38,7 +38,7 @@ def _send(to: str, subject: str, html: str) -> None:
 
 def send_verification_email(email: str, full_name: str, token: str) -> None:
     """Send account verification email."""
-    url = f"{settings.frontend_url}/verify?token={token}"
+    url = f"{settings.api_base_url}/auth/verify?token={token}"
     html = f"""
     <div style="font-family:sans-serif;max-width:600px;margin:auto;padding:32px;background:#0f0f1a;color:#e2e8f0;border-radius:16px;">
         <h1 style="background:linear-gradient(135deg,#a78bfa,#38bdf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:28px;">
@@ -109,3 +109,19 @@ def send_new_match_email(email: str, full_name: str, job_title: str, company: st
     </div>
     """
     _send(email, f"New job match: {job_title} at {company} ({score}/100)", html)
+
+
+def send_rejected_email(email: str, full_name: str, job_title: str, company: str) -> None:
+    """Notify candidate their application was not selected."""
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:auto;padding:32px;background:#0f0f1a;color:#e2e8f0;border-radius:16px;">
+        <h1 style="color:#94a3b8;font-size:24px;">Application Update</h1>
+        <p style="color:#94a3b8;">Hi {full_name},</p>
+        <p style="color:#94a3b8;">Thank you for your interest in <strong style="color:#a78bfa;">{job_title}</strong> at <strong style="color:#38bdf8;">{company}</strong>. After careful review, we've decided to move forward with other candidates.</p>
+        <p style="color:#94a3b8;">Keep improving your profile — new matches are added regularly.</p>
+        <a href="{settings.frontend_url}/jobs" style="display:inline-block;margin:24px 0;padding:12px 32px;background:linear-gradient(135deg,#7c3aed,#2563eb);color:white;border-radius:12px;text-decoration:none;font-weight:600;">
+            Browse More Jobs
+        </a>
+    </div>
+    """
+    _send(email, f"Update on your application — {job_title} at {company}", html)

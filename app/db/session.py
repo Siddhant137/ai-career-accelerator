@@ -39,10 +39,33 @@ def get_db():
         db.close()
 
 
+def _migrate_schema() -> None:
+    """Add columns introduced after initial deploys (SQLite / PostgreSQL)."""
+    from sqlalchemy import inspect
+
+    insp = inspect(engine)
+    if not insp.has_table("users"):
+        return
+
+    user_cols = {c["name"] for c in insp.get_columns("users")}
+    alters: list[str] = []
+    if "verification_token_expires_at" not in user_cols:
+        alters.append(
+            "ALTER TABLE users ADD COLUMN verification_token_expires_at TIMESTAMP"
+        )
+
+    if alters:
+        with engine.begin() as conn:
+            for stmt in alters:
+                conn.execute(text(stmt))
+        logger.info("Applied schema migrations: %s", alters)
+
+
 def create_all_tables() -> None:
     """Create all ORM-mapped tables (called once at startup)."""
     from app.db.models import Base  # local import avoids circular deps
 
     logger.info("Ensuring database tables exist…")
     Base.metadata.create_all(bind=engine)
+    _migrate_schema()
     logger.info("Database tables ready.")

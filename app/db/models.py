@@ -13,7 +13,7 @@ import enum
 
 from sqlalchemy import (
     Boolean, Column, DateTime, Enum, ForeignKey,
-    Integer, String, Text, JSON, func,
+    Integer, String, Text, JSON, UniqueConstraint, func,
 )
 from sqlalchemy.orm import DeclarativeBase, relationship
 
@@ -86,15 +86,17 @@ class User(Base):
 
     # ── Status ─────────────────────────────────────────────────────────────────
     is_active             = Column(Boolean, default=True,  nullable=False)
-    is_verified           = Column(Boolean, default=False, nullable=False)
-    verification_token    = Column(String(255), nullable=True)
-    email_notifications   = Column(Boolean, default=True,  nullable=False)
+    is_verified                    = Column(Boolean, default=False, nullable=False)
+    verification_token             = Column(String(255), nullable=True)
+    verification_token_expires_at  = Column(DateTime(timezone=True), nullable=True)
+    email_notifications            = Column(Boolean, default=True,  nullable=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=datetime.datetime.utcnow, nullable=False)
 
     # ── Relationships ──────────────────────────────────────────────────────────
-    analyses        = relationship("ResumeAnalysis", back_populates="user",      lazy="select")
+    analyses          = relationship("ResumeAnalysis",   back_populates="user",      lazy="select")
+    candidate_resumes = relationship("CandidateResume", back_populates="user",      lazy="select")
     job_posts       = relationship("JobPosting",     back_populates="recruiter",  lazy="select")
     matches         = relationship("Match",          back_populates="candidate",  lazy="select")
     notifications   = relationship("Notification",   back_populates="user",       lazy="select")
@@ -235,6 +237,35 @@ class Match(Base):
 
     def __repr__(self) -> str:
         return f"<Match id={self.id} candidate_id={self.candidate_id} job_id={self.job_id} score={self.score}>"
+
+
+# ── CandidateResume ────────────────────────────────────────────────────────────
+
+class CandidateResume(Base):
+    """One resume per role type (e.g. backend, frontend) for smarter job matching."""
+    __tablename__ = "candidate_resumes"
+    __table_args__ = (
+        UniqueConstraint("user_id", "role_type", name="uq_candidate_resume_role"),
+    )
+
+    id                = Column(Integer, primary_key=True, autoincrement=True)
+    user_id           = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    role_type         = Column(String(100), nullable=False)
+    resume_text       = Column(Text, nullable=False)
+    original_filename = Column(String(255), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=datetime.datetime.utcnow,
+        nullable=False,
+    )
+
+    user = relationship("User", back_populates="candidate_resumes")
+
+    def __repr__(self) -> str:
+        return f"<CandidateResume id={self.id} user_id={self.user_id} role={self.role_type!r}>"
 
 
 # ── ResumeAnalysis ─────────────────────────────────────────────────────────────

@@ -152,7 +152,8 @@ export function getErrorMessage(err: any): string {
 
 export const authApi = {
   register:        (data: { email: string; password: string; full_name: string; role: string }) =>
-                     api.post('/auth/register', data),
+                     api.post<{ id: number; email: string; full_name: string; role: string; message: string }>(
+                       '/auth/register', data),
   login:           (data: { email: string; password: string }) =>
                      api.post<TokenResponse>('/auth/login', data),
   me:              () => api.get<User>('/auth/me'),
@@ -164,6 +165,15 @@ export const authApi = {
                      api.post('/auth/reset-password', { token, new_password }),
   verifyEmail:     (token: string) =>
                      api.post('/auth/verify-email', { token }),
+  resendVerification: () => api.post<{ message: string }>('/auth/resend-verification'),
+}
+
+export interface CandidateResume {
+  id: number
+  role_type: string
+  original_filename?: string
+  created_at: string
+  updated_at: string
 }
 
 export const candidateApi = {
@@ -172,13 +182,25 @@ export const candidateApi = {
   getHistory:   (page = 1, size = 10) =>
                   api.get<PaginatedResponse<AnalysisSummary>>(`/candidates/me/history?page=${page}&size=${size}`),
   getAnalysis:  (id: number) => api.get<AnalysisSummary>(`/candidates/me/history/${id}`),
+  listResumes:  () => api.get<CandidateResume[]>('/candidates/me/resumes'),
+  roleTypes:    () => api.get<{ role_types: string[] }>('/candidates/me/resumes/role-types'),
+  uploadResume: (file: File, roleType: string) => {
+    const form = new FormData()
+    form.append('resume', file)
+    form.append('role_type', roleType)
+    return api.post<CandidateResume>('/candidates/me/resumes', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  deleteResume: (id: number) => api.delete(`/candidates/me/resumes/${id}`),
 }
 
 export const resumeApi = {
-  score: (file: File, jobDescription: string) => {
+  score: (file: File, jobDescription: string, roleType?: string) => {
     const form = new FormData()
     form.append('resume', file)
     form.append('job_description', jobDescription)
+    if (roleType) form.append('role_type', roleType)
     return api.post<ResumeScoreResponse>('/api/v1/score-resume', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })

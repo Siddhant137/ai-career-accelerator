@@ -1,7 +1,10 @@
 'use client'
 import { useEffect, useState } from 'react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
-import { jobsApi, JobPosting } from '@/lib/api'
+import VerificationBanner from '@/components/ui/VerificationBanner'
+import PageHeader from '@/components/ui/PageHeader'
+import EmptyState from '@/components/ui/EmptyState'
+import { jobsApi, JobPosting, getErrorMessage } from '@/lib/api'
 import { Search, Briefcase, MapPin, DollarSign, Zap, ChevronLeft, ChevronRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -32,7 +35,7 @@ export default function JobsPage() {
       const { data } = await jobsApi.matchMe(jobId)
       toast.success(`Matched! Score: ${data.score}/100`)
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Match failed — score a resume first')
+      toast.error(getErrorMessage(err))
     } finally { setMatching(null) }
   }
 
@@ -40,10 +43,11 @@ export default function JobsPage() {
 
   return (
     <DashboardLayout requiredRole="candidate">
-      <div className="mb-8">
-        <h1 className="font-display font-bold text-3xl text-white mb-1">Browse Jobs</h1>
-        <p className="text-slate-400">{total} active opportunities</p>
-      </div>
+      <VerificationBanner />
+      <PageHeader
+        title="Browse jobs"
+        subtitle={`${total} active opportunities — match uses your best role-specific resume`}
+      />
 
       {/* Search */}
       <form onSubmit={handleSearch} className="flex gap-3 mb-6">
@@ -58,15 +62,15 @@ export default function JobsPage() {
       </form>
 
       {jobs.length === 0 ? (
-        <div className="card text-center py-16">
-          <Briefcase size={48} color="#1e293b" className="mx-auto mb-4" />
-          <p className="text-slate-500 font-display font-semibold">No jobs found</p>
-          <p className="text-slate-600 text-sm mt-1">Try a different search term</p>
-        </div>
+        <EmptyState
+          icon={Briefcase}
+          title="No jobs found"
+          description="Try another search term, or check back later when recruiters post new roles."
+        />
       ) : (
         <div className="flex flex-col gap-4">
           {jobs.map(job => (
-            <div key={job.id} className="card flex flex-col md:flex-row md:items-start gap-4">
+            <div key={job.id} className="card card-glow card-interactive flex flex-col md:flex-row md:items-start gap-4">
               <div className="flex-1">
                 <div className="flex items-start justify-between mb-2">
                   <div>

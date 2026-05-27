@@ -44,10 +44,11 @@ class Settings(BaseSettings):
     resend_api_key:  str = ""
     email_from:      str = "noreply@careerai.dev"
     frontend_url:    str = "http://localhost:3000"
+    api_base_url:    str = "http://localhost:8000"
 
     # ── Phase 3: Auto-matching ─────────────────────────────────────────────────
     auto_match_enabled:        bool = True
-    auto_match_min_score:      int  = 60
+    auto_match_min_score:      int  = 70
     auto_match_interval_hours: int  = 24
 
 

@@ -18,3 +18,4 @@ frontend/out/
 # MacOS
 .DS_Store*.bundle
 *.bundle
+*.bundle

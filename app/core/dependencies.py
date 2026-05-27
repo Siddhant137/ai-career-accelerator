@@ -68,6 +68,20 @@ def get_current_user(
 
     return user
 
+
+def require_verified(user: User = Depends(get_current_user)) -> User:
+    """Require a verified email address for protected features."""
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Please verify your email before using this feature. "
+                "Check your inbox for the verification link."
+            ),
+        )
+    return user
+
+
 def require_role(*roles: UserRole):
     """
     Dependency factory that restricts a route to specific roles.
@@ -89,3 +103,18 @@ def require_role(*roles: UserRole):
             )
         return user
     return _check
+
+
+def require_verified_candidate(
+    user: User = Depends(require_role(UserRole.candidate)),
+) -> User:
+    """Candidate-only routes that require a verified email."""
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Please verify your email before using this feature. "
+                "Check your inbox for the verification link."
+            ),
+        )
+    return user

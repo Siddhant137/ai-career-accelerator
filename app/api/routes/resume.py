@@ -40,6 +40,7 @@ from app.schemas.resume import ResumeScoreResponse
 from app.services.auth_service import decode_access_token, get_user_by_id
 from app.services.gemini_service import score_resume
 from app.services.pdf_service import extract_text_from_pdf
+from app.services.resume_library_service import upsert_candidate_resume
 
 router   = APIRouter(prefix="/api/v1", tags=["Resume Scoring"])
 logger   = get_logger(__name__)
@@ -92,10 +93,24 @@ async def score_resume_endpoint(
     ),
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(_get_optional_user),
+    role_type: Optional[str] = Form(
+        default=None,
+        description="Optional role type (e.g. backend, frontend) to save this resume for matching.",
+    ),
 ) -> ResumeScoreResponse:
     """
     Evaluate how well a candidate's resume matches the target job description.
+    Authenticated candidates must have a verified email.
     """
+    if current_user and not current_user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Please verify your email before scoring resumes. "
+                "Check your inbox for the verification link."
+            ),
+        )
+
     # ── 1. File validation ─────────────────────────────────────────────────────
     if resume.content_type not in _ALLOWED_CONTENT_TYPES and not (
         resume.filename or ""
@@ -161,6 +176,17 @@ async def score_resume_endpoint(
             analysis.score,
             current_user.id if current_user else "anonymous",
         )
+        if current_user and role_type:
+            try:
+                upsert_candidate_resume(
+                    db,
+                    current_user,
+                    role_type,
+                    resume_text,
+                    resume.filename,
+                )
+            except Exception as exc:
+                logger.warning("Could not update resume library: %s", exc)
     except Exception as exc:
         logger.error("Failed to persist analysis: %s", exc)
         db.rollback()

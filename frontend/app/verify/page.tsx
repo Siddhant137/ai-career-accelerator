@@ -1,94 +1,89 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { Zap, CheckCircle, XCircle, Loader } from 'lucide-react'
+import { CheckCircle, XCircle, Loader } from 'lucide-react'
 import { authApi, getErrorMessage } from '@/lib/api'
+import AuthShell from '@/components/ui/AuthShell'
 
 type State = 'loading' | 'success' | 'error'
 
-export default function VerifyPage() {
-  const router      = useRouter()
-  const params      = useSearchParams()
-  const [state, setState]   = useState<State>('loading')
+function VerifyContent() {
+  const router = useRouter()
+  const params = useSearchParams()
+  const [state, setState] = useState<State>('loading')
   const [message, setMessage] = useState('')
 
   useEffect(() => {
-    const token = params.get('token')
-    if (!token) {
+    const error = params.get('error')
+    if (error) {
       setState('error')
-      setMessage('No verification token found in the link. Please check your email.')
+      setMessage(decodeURIComponent(error))
       return
     }
 
-    authApi.verifyEmail(token)
+    const token = params.get('token')
+    if (!token) {
+      setState('error')
+      setMessage('No verification token in this link. Open the link from your email.')
+      return
+    }
+
+    authApi
+      .verifyEmail(token)
       .then(() => {
         setState('success')
-        setMessage('Your email has been verified successfully!')
-        setTimeout(() => router.push('/login'), 3000)
+        setMessage('Your email is verified. You can sign in and use all features.')
+        setTimeout(() => router.push('/login?verified=1'), 2500)
       })
-      .catch((err) => {
+      .catch(err => {
         setState('error')
         setMessage(getErrorMessage(err))
       })
-  }, [])
+  }, [params, router])
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="w-full max-w-md text-center">
+    <AuthShell
+      title={
+        state === 'loading' ? 'Verifying…' : state === 'success' ? 'Email verified' : 'Verification failed'
+      }
+      subtitle={
+        state === 'loading'
+          ? 'Please wait while we confirm your email address.'
+          : message
+      }
+    >
+      <div className="flex flex-col items-center gap-6 py-4">
+        {state === 'loading' && <Loader size={48} className="animate-spin text-purple-400" />}
+        {state === 'success' && <CheckCircle size={52} className="text-green-400" />}
+        {state === 'error' && <XCircle size={52} className="text-red-400" />}
 
-        {/* Logo */}
-        <div className="inline-flex items-center gap-2 mb-8">
-          <div style={{ background: 'linear-gradient(135deg, #7c3aed, #2563eb)', borderRadius: 8, padding: 8 }}>
-            <Zap size={20} color="white" />
+        {state === 'success' && (
+          <p className="text-slate-500 text-xs">Redirecting to sign in…</p>
+        )}
+
+        {state !== 'loading' && (
+          <div className="flex flex-col gap-3 w-full">
+            <Link href="/login" className="btn-primary text-center">
+              Go to sign in
+            </Link>
+            {state === 'error' && (
+              <Link href="/register" className="text-purple-400 text-sm text-center hover:text-purple-300">
+                Create a new account
+              </Link>
+            )}
           </div>
-          <span className="font-bold text-xl" style={{ background: 'linear-gradient(135deg,#a78bfa,#38bdf8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            CareerAI
-          </span>
-        </div>
-
-        <div className="card flex flex-col items-center gap-6 py-10">
-          {state === 'loading' && (
-            <>
-              <Loader size={48} className="animate-spin" style={{ color: '#a78bfa' }} />
-              <div>
-                <h1 className="font-bold text-2xl text-white mb-2">Verifying your email…</h1>
-                <p className="text-slate-400 text-sm">Please wait a moment.</p>
-              </div>
-            </>
-          )}
-
-          {state === 'success' && (
-            <>
-              <CheckCircle size={48} style={{ color: '#4ade80' }} />
-              <div>
-                <h1 className="font-bold text-2xl text-white mb-2">Email Verified!</h1>
-                <p className="text-slate-400 text-sm mb-1">{message}</p>
-                <p className="text-slate-500 text-xs">Redirecting you to login in 3 seconds…</p>
-              </div>
-              <Link href="/login" className="btn-primary w-full text-center">Go to Login</Link>
-            </>
-          )}
-
-          {state === 'error' && (
-            <>
-              <XCircle size={48} style={{ color: '#f87171' }} />
-              <div>
-                <h1 className="font-bold text-2xl text-white mb-2">Verification Failed</h1>
-                <p className="text-slate-400 text-sm">{message}</p>
-              </div>
-              <div className="flex flex-col gap-3 w-full">
-                <Link href="/login" className="btn-primary w-full text-center">Go to Login</Link>
-                <Link href="/register" className="text-purple-400 hover:text-purple-300 text-sm">
-                  Create a new account
-                </Link>
-              </div>
-            </>
-          )}
-        </div>
-
+        )}
       </div>
-    </div>
+    </AuthShell>
+  )
+}
+
+export default function VerifyPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-slate-500">Loading…</div>}>
+      <VerifyContent />
+    </Suspense>
   )
 }

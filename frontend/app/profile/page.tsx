@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import { candidateApi, authApi, CandidateProfile } from '@/lib/api'
 import toast from 'react-hot-toast'
-import { User, Lock, Save } from 'lucide-react'
+import PageHeader from '@/components/ui/PageHeader'
+import VerificationBanner from '@/components/ui/VerificationBanner'
+import { User, Lock, Save, CheckCircle, AlertCircle } from 'lucide-react'
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Partial<CandidateProfile>>({})
@@ -69,16 +71,24 @@ export default function ProfilePage() {
 
   return (
     <DashboardLayout requiredRole="candidate">
-      
-      <div className="mb-8">
-        <h1 className="font-display font-bold text-3xl text-white mb-1">My Profile</h1>
-        <p className="text-slate-400">Update your professional information</p>
-      </div>
+      <VerificationBanner />
+      <PageHeader title="My profile" subtitle="Your public candidate information and account security" />
 
       <div className="grid md:grid-cols-2 gap-6">
-        
-        {/* Profile form */}
-        <div className="card">
+        <div className="card card-glow">
+          {profile.is_verified !== undefined && (
+            <div
+              className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-sm"
+              style={{
+                background: profile.is_verified ? 'rgba(74,222,128,0.1)' : 'rgba(251,191,36,0.1)',
+                border: `1px solid ${profile.is_verified ? 'rgba(74,222,128,0.3)' : 'rgba(251,191,36,0.3)'}`,
+                color: profile.is_verified ? '#4ade80' : '#fbbf24',
+              }}
+            >
+              {profile.is_verified ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+              {profile.is_verified ? 'Email verified' : 'Email not verified'}
+            </div>
+          )}
           <div className="flex items-center gap-2 mb-6">
             <User size={18} color="#a78bfa" />
             <h2 className="font-display font-semibold text-white">Profile Info</h2>
@@ -109,7 +119,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Password form */}
-        <div className="card h-fit">
+        <div className="card card-glow h-fit">
           <div className="flex items-center gap-2 mb-6">
             <Lock size={18} color="#a78bfa" />
             <h2 className="font-display font-semibold text-white">Change Password</h2>
