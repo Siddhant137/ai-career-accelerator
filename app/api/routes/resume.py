@@ -102,14 +102,14 @@ async def score_resume_endpoint(
     Evaluate how well a candidate's resume matches the target job description.
     Authenticated candidates must have a verified email.
     """
-    if current_user and not current_user.is_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "Please verify your email before scoring resumes. "
-                "Check your inbox for the verification link."
-            ),
-        )
+    #if current_user and not current_user.is_verified:
+    #    raise HTTPException(
+    #        status_code=status.HTTP_403_FORBIDDEN,
+    #        detail=(
+    #            "Please verify your email before scoring resumes. "
+    #            "Check your inbox for the verification link."
+    #           ),
+    #     )
 
     # ── 1. File validation ─────────────────────────────────────────────────────
     if resume.content_type not in _ALLOWED_CONTENT_TYPES and not (

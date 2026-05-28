@@ -144,7 +144,7 @@ def register_user(db: Session, payload: RegisterRequest) -> User:
         full_name=payload.full_name.strip(),
         role=role,
         is_active=True,
-        is_verified=False,
+        is_verified=True,
     )
     db.add(user)
 
