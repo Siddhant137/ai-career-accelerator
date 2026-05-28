@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { logout, getRole } from '@/lib/auth'
 import {
-  Zap, LogOut, User, Briefcase, FileText, Star, Home, PlusCircle, Upload, Menu, X, Bell,
+  Zap, LogOut, User, Briefcase, FileText, Star, Home, PlusCircle, Upload, Menu, X, Bell, BarChart3, FilePen, Shield,
 } from 'lucide-react'
 import NotificationBell from '@/components/ui/NotificationBell'
 
@@ -17,7 +17,9 @@ export default function Navbar() {
   const candidateLinks = [
     { href: '/dashboard', label: 'Dashboard', icon: Home },
     { href: '/score', label: 'Score', icon: FileText },
-    { href: '/resumes', label: 'Resumes', icon: Upload },
+    { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+    { href: '/resumes', label: 'My Resumes', icon: Upload },
+    { href: '/resume-builder', label: 'Resume Builder', icon: FilePen },
     { href: '/jobs', label: 'Jobs', icon: Briefcase },
     { href: '/matches', label: 'Matches', icon: Star },
     { href: '/notifications', label: 'Alerts', icon: Bell },
@@ -31,7 +33,9 @@ export default function Navbar() {
     { href: '/notifications', label: 'Alerts', icon: Bell },
   ]
 
-  const links = role === 'recruiter' ? recruiterLinks : candidateLinks
+  const adminLinks = [{ href: '/admin', label: 'Admin Panel', icon: Shield }]
+  const baseLinks = role === 'recruiter' ? recruiterLinks : candidateLinks
+  const links = role === 'admin' ? [...baseLinks, ...adminLinks] : baseLinks
   const homeHref = role === 'recruiter' ? '/recruiter/dashboard' : '/dashboard'
 
   const isActive = (href: string) =>

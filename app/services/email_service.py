@@ -10,6 +10,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from app.core.config import get_settings
+from app.core.email_allowlist import allowlist_status
 from app.core.logging import get_logger
 
 logger   = get_logger(__name__)
@@ -18,6 +19,10 @@ settings = get_settings()
 
 def _send(to: str, subject: str, html: str) -> None:
     """Send an email via SMTP. Falls back to console log in dev."""
+    if settings.email_mode == "console":
+        logger.info("EMAIL (console mode) to=%s subject=%s", to, subject)
+        return
+
     if not settings.smtp_user or not settings.smtp_password:
         logger.info("EMAIL (dev mode — no SMTP creds) to=%s subject=%s", to, subject)
         return
@@ -29,19 +34,29 @@ def _send(to: str, subject: str, html: str) -> None:
         msg["To"]      = to
         msg.attach(MIMEText(html, "html"))
 
-        # 🚨 THE FIX: Use SMTP_SSL on Port 465 (bypassing the starttls step entirely)
-        with smtplib.SMTP_SSL(settings.smtp_host, 465, timeout=15) as server:
-            server.login(settings.smtp_user, settings.smtp_password)
-            server.sendmail(settings.smtp_user, [to], msg.as_string())
+        if settings.smtp_use_tls:
+            with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
+                server.login(settings.smtp_user, settings.smtp_password)
+                server.sendmail(msg["From"], [to], msg.as_string())
+        else:
+            with smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=15) as server:
+                server.login(settings.smtp_user, settings.smtp_password)
+                server.sendmail(msg["From"], [to], msg.as_string())
 
         logger.info("Email sent to=%s subject=%s", to, subject)
 
-    except smtplib.SMTPAuthenticationError:
+    except smtplib.SMTPAuthenticationError as exc:
         logger.error("SMTP auth failed — check SMTP_USER and SMTP_PASSWORD (use App Password for Gmail)")
+        raise RuntimeError("SMTP authentication failed.") from exc
     except smtplib.SMTPException as exc:
         logger.error("SMTP error: %s", exc)
+        raise RuntimeError("SMTP delivery failed.") from exc
     except Exception as exc:
         logger.error("Email send failed: %s", exc)
+        raise RuntimeError("Email delivery failed.") from exc
 
 
 def send_verification_email(email: str, full_name: str, token: str) -> None:
@@ -134,3 +149,45 @@ def send_new_match_email(email: str, full_name: str, job_title: str,
     </div>
     """
     _send(email, f"New match: {job_title} at {company} ({score}/100)", html)
+
+
+def send_rejected_email(email: str, full_name: str, job_title: str, company: str) -> None:
+    html = f"""
+    <div style="font-family:sans-serif;max-width:600px;margin:auto;padding:32px;
+                background:#0f0f1a;color:#e2e8f0;border-radius:16px;">
+        <h1 style="color:#f87171;font-size:24px;">Application Update</h1>
+        <p style="color:#94a3b8;">Hi {full_name},</p>
+        <p style="color:#94a3b8;">
+            Thanks for applying to <strong style="color:#a78bfa;">{job_title}</strong> at
+            <strong style="color:#38bdf8;">{company}</strong>.
+        </p>
+        <p style="color:#94a3b8;">
+            This role moved forward with other candidates, but we encourage you to keep applying.
+        </p>
+        <a href="{settings.frontend_url}/jobs"
+           style="display:inline-block;margin:24px 0;padding:12px 32px;
+                  background:linear-gradient(135deg,#7c3aed,#2563eb);
+                  color:white;border-radius:12px;text-decoration:none;
+                  font-weight:600;">Browse More Jobs</a>
+    </div>
+    """
+    _send(email, f"Update on your {job_title} application", html)
+
+
+def get_email_delivery_status() -> dict:
+    """Return email delivery configuration and allowlist status for health checks."""
+    mode = settings.email_mode
+    smtp_configured = bool(
+        settings.smtp_host and settings.smtp_user and settings.smtp_password
+    )
+    return {
+        "mode": mode,
+        "from": settings.email_from or settings.smtp_user or "",
+        "smtp": {
+            "host": settings.smtp_host,
+            "port": settings.smtp_port,
+            "use_tls": settings.smtp_use_tls,
+            "configured": smtp_configured,
+        },
+        "allowlist": allowlist_status(),
+    }

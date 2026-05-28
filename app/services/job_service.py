@@ -139,3 +139,45 @@ def delete_job(db: Session, recruiter: User, job_id: int) -> None:
     job.status = JobStatus.closed
     db.commit()
     logger.info("Job closed: id=%d", job.id)
+
+
+
+def get_jobs_filtered(
+    db:               Session,
+    page:             int  = 1,
+    size:             int  = 10,
+    search:           Optional[str] = None,
+    location:         Optional[str] = None,
+    job_type:         Optional[str] = None,
+    experience_level: Optional[str] = None,
+    salary_contains:  Optional[str] = None,
+) -> tuple[int, list[JobPosting]]:
+    """
+    Return active jobs with optional filters.
+    All filters are case-insensitive partial matches.
+    """
+    q = db.query(JobPosting).filter(JobPosting.status == JobStatus.active)
+ 
+    if search:
+        term = f"%{search}%"
+        q = q.filter(
+            JobPosting.title.ilike(term)
+            | JobPosting.description.ilike(term)
+            | JobPosting.company.ilike(term)
+        )
+ 
+    if location:
+        q = q.filter(JobPosting.location.ilike(f"%{location}%"))
+ 
+    if job_type:
+        q = q.filter(JobPosting.job_type.ilike(f"%{job_type}%"))
+ 
+    if experience_level:
+        q = q.filter(JobPosting.experience_level.ilike(f"%{experience_level}%"))
+ 
+    if salary_contains:
+        q = q.filter(JobPosting.salary_range.ilike(f"%{salary_contains}%"))
+ 
+    total   = q.count()
+    results = q.order_by(JobPosting.created_at.desc()).offset((page - 1) * size).limit(size).all()
+    return total, results    

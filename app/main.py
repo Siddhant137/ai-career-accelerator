@@ -14,7 +14,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.routes import (
+    admin,
+    analytics,
     auth,
+    auditor,
     candidates,
     coach,
     companies,
@@ -138,6 +141,9 @@ def create_app() -> FastAPI:
     app.include_router(coach.router)
     app.include_router(skills.router)
     app.include_router(companies.router)
+    app.include_router(admin.router)
+    app.include_router(analytics.router)
+    app.include_router(auditor.router)
 
     return app
 

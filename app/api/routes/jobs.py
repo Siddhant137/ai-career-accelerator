@@ -25,8 +25,9 @@ from app.schemas.match import (
     MatchWithJobResponse, PaginatedMatches,
 )
 from app.services.auto_match_service import run_auto_match, run_auto_match_for_job
-from app.services.email_service import send_shortlisted_email
+from app.services.email_service import send_rejected_email, send_shortlisted_email
 from app.services.job_service import (
+    get_jobs_filtered,
     create_job, delete_job, get_job_by_id, get_jobs,
     get_recruiter_jobs, update_job,
 )
@@ -73,11 +74,27 @@ def trigger_auto_match(recruiter: User = _recruiter, db: Session = Depends(get_d
 
 @router.get("", response_model=PaginatedJobs)
 def list_jobs(
-    page: int = Query(default=1, ge=1), size: int = Query(default=10, ge=1, le=50),
-    search: Optional[str] = Query(default=None), db: Session = Depends(get_db),
+    page:             int            = Query(default=1, ge=1),
+    size:             int            = Query(default=10, ge=1, le=50),
+    search:           Optional[str]  = Query(default=None),
+    location:         Optional[str]  = Query(default=None),
+    job_type:         Optional[str]  = Query(default=None),
+    experience_level: Optional[str]  = Query(default=None),
+    salary_contains:  Optional[str]  = Query(default=None, description="e.g. '80k', 'remote'"),
+    db:               Session        = Depends(get_db),
 ):
-    total, jobs = get_jobs(db, page, size, JobStatus.active, search)
-    return PaginatedJobs(total=total, page=page, size=size, results=[JobPostingSummary.model_validate(j) for j in jobs])
+    total, jobs = get_jobs_filtered(
+        db, page, size,
+        search=search,
+        location=location,
+        job_type=job_type,
+        experience_level=experience_level,
+        salary_contains=salary_contains,
+    )
+    return PaginatedJobs(
+        total=total, page=page, size=size,
+        results=[JobPostingSummary.model_validate(j) for j in jobs],
+    )
 
 
 @router.get("/mine", response_model=PaginatedJobs)

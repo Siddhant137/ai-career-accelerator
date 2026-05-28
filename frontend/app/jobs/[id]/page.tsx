@@ -18,7 +18,7 @@ export default function JobsPage() {
   const size = 10
 
   useEffect(() => {
-    jobsApi.list(page, size, query)
+    jobsApi.list(page, size, { search: query || undefined })
       .then(r => { 
         setJobs(r.data.results); 
         setTotal(r.data.total) 

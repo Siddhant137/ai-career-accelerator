@@ -64,6 +64,7 @@ class JobPostingSummary(BaseModel):
     title:            str
     company:          str
     location:         Optional[str]
+    description:      str
     required_skills:  list[str]
     salary_range:     Optional[str]
     job_type:         Optional[str]
